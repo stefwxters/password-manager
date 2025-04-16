@@ -4,18 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Password Manager</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    /* Critical CSS for above-the-fold content */
-    body { font-family: Arial, sans-serif; background: #f3f4f6; margin: 0; }
-    .hidden { display: none; }
-    input, textarea, button { outline: none; }
-    /* Animations */
-    .fade-in { animation: fadeIn 0.3s ease-in; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-    .scale-hover:hover { transform: scale(1.05); transition: transform 0.2s ease; }
-    .credentials-list { max-height: 500px; overflow-y: auto; scroll-behavior: smooth; }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
   <div id="app" class="min-h-screen flex flex-col">
@@ -30,22 +19,22 @@
             type="text"
             id="login-username"
             placeholder="Username"
-            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+            class="w-full p-2 mb-4 border rounded focus-border-blue"
           >
           <input
             type="password"
             id="login-password"
             placeholder="Master Password"
-            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+            class="w-full p-2 mb-4 border rounded focus-border-blue"
           >
           <button
             onclick="login()"
-            class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+            class="w-full bg-blue text-white p-2 rounded scale-hover"
           >
             Login
           </button>
           <p class="mt-4 text-center">
-            No account? <span onclick="showRegister()" class="text-blue-500 cursor-pointer hover:underline">Register</span>
+            No account? <span onclick="showRegister()" class="text-blue cursor-pointer hover:underline">Register</span>
           </p>
         </div>
         <!-- Register Form -->
@@ -55,22 +44,22 @@
             type="text"
             id="register-username"
             placeholder="Username"
-            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+            class="w-full p-2 mb-4 border rounded focus-border-blue"
           >
           <input
             type="password"
             id="register-password"
             placeholder="Master Password"
-            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+            class="w-full p-2 mb-4 border rounded focus-border-blue"
           >
           <button
             onclick="register()"
-            class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+            class="w-full bg-blue text-white p-2 rounded scale-hover"
           >
             Register
           </button>
           <p class="mt-4 text-center">
-            Already have an account? <span onclick="showLogin()" class="text-blue-500 cursor-pointer hover:underline">Login</span>
+            Already have an account? <span onclick="showLogin()" class="text-blue cursor-pointer hover:underline">Login</span>
           </p>
         </div>
       </div>
@@ -85,7 +74,7 @@
           type="text"
           id="autofill-search"
           placeholder="Search by website (e.g., example.com)"
-          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
           oninput="filterCredentials()"
         >
       </div>
@@ -96,24 +85,24 @@
           type="text"
           id="website"
           placeholder="Website (e.g., example.com)"
-          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
         >
         <input
           type="text"
           id="username"
           placeholder="Username"
-          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
         >
         <div class="flex mb-4">
           <input
             type="text"
             id="password"
             placeholder="Password"
-            class="w-full p-2 border rounded focus:border-blue-500"
+            class="w-full p-2 border rounded focus-border-blue"
           >
           <button
             onclick="generatePassword()"
-            class="ml-2 bg-green-500 text-white p-2 rounded scale-hover"
+            class="ml-2 bg-green text-white p-2 rounded scale-hover"
           >
             Generate
           </button>
@@ -121,11 +110,11 @@
         <textarea
           id="note"
           placeholder="Note"
-          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
         ></textarea>
         <button
           onclick="addCredential()"
-          class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+          class="w-full bg-blue text-white p-2 rounded scale-hover"
         >
           Save
         </button>
@@ -135,7 +124,7 @@
         <h2 class="text-xl font-semibold mb-4">Security Checkup</h2>
         <button
           onclick="runSecurityCheck()"
-          class="w-full bg-yellow-500 text-white p-2 rounded scale-hover"
+          class="w-full bg-yellow text-white p-2 rounded scale-hover"
         >
           Run Check
         </button>
@@ -149,7 +138,7 @@
         <h2 class="text-xl font-semibold mb-4">Export/Import</h2>
         <button
           onclick="exportCredentials()"
-          class="w-full bg-purple-500 text-white p-2 rounded scale-hover mb-4"
+          class="w-full bg-purple text-white p-2 rounded scale-hover mb-4"
         >
           Export as CSV
         </button>
@@ -168,7 +157,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       // Register Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').then(() => {
+        navigator.serviceWorker.register('/sw.js').then(() => {
           console.log('Service Worker Registered');
         }).catch(err => console.error('Service Worker Error:', err));
       }
@@ -325,7 +314,7 @@
         const cred = credentials.find(c => c.id === id);
         try {
           const decrypted = await decrypt(cred.encryptedPassword, masterPassword);
-          alert(`Password: ${decrypted}`);
+          copyToClipboard(decrypted);
         } catch (e) {
           alert('Incorrect master password');
         }
@@ -361,19 +350,19 @@
             <div class="mt-2 flex space-x-2">
               <button
                 onclick="copyToClipboard('${cred.username}')"
-                class="bg-gray-500 text-white p-2 rounded scale-hover"
+                class="bg-gray text-white p-2 rounded scale-hover"
               >
                 Copy Username
               </button>
               <button
                 onclick="showPassword('${cred.id}')"
-                class="bg-blue-500 text-white p-2 rounded scale-hover"
+                class="bg-blue text-white p-2 rounded scale-hover"
               >
-                Show Password
+                Copy Password
               </button>
               <button
                 onclick="deleteCredential('${cred.id}')"
-                class="bg-red-500 text-white p-2 rounded scale-hover"
+                class="bg-red text-white p-2 rounded scale-hover"
               >
                 Delete
               </button>
@@ -398,8 +387,8 @@
           passwordSet.add(password);
         }
         result.innerHTML = warnings.length
-          ? warnings.map(w => `<p class="text-red-600">${w}</p>`).join('')
-          : '<p class="text-green-600">No security issues found.</p>';
+          ? warnings.map(w => `<p class="text-red">${w}</p>`).join('')
+          : '<p class="text-green">No security issues found.</p>';
       }
 
       function exportCredentials() {

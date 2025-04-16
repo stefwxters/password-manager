@@ -254,7 +254,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       // Register Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').then(() => {
+        navigator.serviceWorker.register('/sw.js').then(() => {
           console.log('Service Worker Registered');
         }).catch(err => console.error('Service Worker Error:', err));
       }
@@ -282,13 +282,13 @@
         const encrypted = await crypto.subtle.encrypt(
           { name: 'AES-GCM', iv }, key, enc.encode(data)
         );
-        return { salt, iv, encrypted: new Uint8Array(encrypted) };
+        return { salt: Array.from(salt), iv: Array.from(iv), encrypted: Array.from(new Uint8Array(encrypted)) };
       }
 
       async function decrypt({ salt, iv, encrypted }, password) {
-        const key = await deriveKey(password, salt);
+        const key = await deriveKey(password, new Uint8Array(salt));
         const decrypted = await crypto.subtle.decrypt(
-          { name: 'AES-GCM', iv }, key, encrypted
+          { name: 'AES-GCM', iv: new Uint8Array(iv) }, key, new Uint8Array(encrypted)
         );
         return new TextDecoder().decode(decrypted);
       }
@@ -296,19 +296,13 @@
       async function hashPassword(password) {
         const salt = crypto.getRandomValues(new Uint8Array(16));
         const enc = new TextEncoder();
-        const key = await crypto.subtle.digest(
-          'SHA-256',
-          new Uint8Array([...enc.encode(password), ...salt])
-        );
-        return { salt, hash: new Uint8Array(key) };
+        const key = await crypto.subtle.digest('SHA-256', enc.encode(password + salt.join('')));
+        return { salt: Array.from(salt), hash: Array.from(new Uint8Array(key)) };
       }
 
       async function verifyPassword(password, { salt, hash }) {
         const enc = new TextEncoder();
-        const key = await crypto.subtle.digest(
-          'SHA-256',
-          new Uint8Array([...enc.encode(password), ...salt])
-        );
+        const key = await crypto.subtle.digest('SHA-256', enc.encode(password + salt.join('')));
         const keyArray = new Uint8Array(key);
         return hash.every((byte, i) => byte === keyArray[i]);
       }
@@ -334,6 +328,17 @@
       let users = JSON.parse(localStorage.getItem('users') || '{}');
       let settings = JSON.parse(localStorage.getItem('settings') || '{}');
       let pinCallback = null;
+
+      // Migrate old user data
+      for (const username in users) {
+        const user = users[username];
+        if (!Array.isArray(user.salt) || !Array.isArray(user.hash)) {
+          delete users[username];
+          localStorage.removeItem(`credentials_${username}`);
+          localStorage.removeItem(`accessKeys_${username}`);
+        }
+      }
+      localStorage.setItem('users', JSON.stringify(users));
 
       // Settings
       function toggleAutoLogin() {
@@ -366,27 +371,31 @@
           alert('Please enter the master password');
           return;
         }
-        const user = users[username];
-        if (!user || !(await verifyPassword(password, user))) {
-          alert('Invalid password');
-          return;
+        try {
+          const user = users[username];
+          if (!user || !(await verifyPassword(password, user))) {
+            alert('Invalid password');
+            return;
+          }
+          masterPassword = password;
+          currentUser = username;
+          credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
+          accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
+          document.getElementById('auth-screen').classList.add('hidden');
+          document.getElementById('main-app').classList.remove('hidden');
+          renderCredentials();
+          renderAccessKeys();
+          document.getElementById('auto-login-toggle').checked = settings.autoLogin;
+          document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
+        } catch (e) {
+          alert('Login failed. Please try again or register a new account.');
         }
-        masterPassword = password;
-        currentUser = username;
-        credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
-        accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
-        document.getElementById('auth-screen').classList.add('hidden');
-        document.getElementById('main-app').classList.remove('hidden');
-        renderCredentials();
-        renderAccessKeys();
-        document.getElementById('auto-login-toggle').checked = settings.autoLogin;
-        document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
       }
 
       // PIN Confirmation (Simulates Windows Hello)
       async function verifyPin() {
         const pin = document.getElementById('pin-input').value;
-        if (pin === '1234') { // Hardcoded for demo; in production, use secure storage
+        if (pin === '1234') {
           document.getElementById('pin-screen').classList.add('hidden');
           document.getElementById('main-app').classList.remove('hidden');
           if (pinCallback) {
@@ -432,13 +441,17 @@
           alert('Username already exists');
           return;
         }
-        const hashedPassword = await hashPassword(password);
-        users[username] = hashedPassword;
-        localStorage.setItem('users', JSON.stringify(users));
-        alert('Registration successful! Please login.');
-        showLogin();
-        document.getElementById('register-username').value = '';
-        document.getElementById('register-password').value = '';
+        try {
+          const hashedPassword = await hashPassword(password);
+          users[username] = hashedPassword;
+          localStorage.setItem('users', JSON.stringify(users));
+          alert('Registration successful! Please login.');
+          showLogin();
+          document.getElementById('register-username').value = '';
+          document.getElementById('register-password').value = '';
+        } catch (e) {
+          alert('Registration failed. Please try again.');
+        }
       }
 
       async function login() {
@@ -448,21 +461,25 @@
           alert('Please enter both username and password');
           return;
         }
-        const user = users[username];
-        if (!user || !(await verifyPassword(password, user))) {
-          alert('Invalid username or password');
-          return;
+        try {
+          const user = users[username];
+          if (!user || !(await verifyPassword(password, user))) {
+            alert('Invalid username or password');
+            return;
+          }
+          masterPassword = password;
+          currentUser = username;
+          credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
+          accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
+          document.getElementById('auth-screen').classList.add('hidden');
+          document.getElementById('main-app').classList.remove('hidden');
+          renderCredentials();
+          renderAccessKeys();
+          document.getElementById('auto-login-toggle').checked = settings.autoLogin;
+          document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
+        } catch (e) {
+          alert('Login failed. Please try again or register a new account.');
         }
-        masterPassword = password;
-        currentUser = username;
-        credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
-        accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
-        document.getElementById('auth-screen').classList.add('hidden');
-        document.getElementById('main-app').classList.remove('hidden');
-        renderCredentials();
-        renderAccessKeys();
-        document.getElementById('auto-login-toggle').checked = settings.autoLogin;
-        document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
       }
 
       async function addCredential() {

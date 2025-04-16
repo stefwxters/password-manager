@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Password Manager</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Critical CSS for above-the-fold content */
+    body { font-family: Arial, sans-serif; background: #f3f4f6; margin: 0; }
+    .hidden { display: none; }
+    input, textarea, button { outline: none; }
+    /* Animations */
+    .fade-in { animation: fadeIn 0.3s ease-in; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .scale-hover:hover { transform: scale(1.05); transition: transform 0.2s ease; }
+    .credentials-list { max-height: 500px; overflow-y: auto; scroll-behavior: smooth; }
+  </style>
+</head>
+<body>
+  <div id="app" class="min-h-screen flex flex-col">
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="flex items-center justify-center min-h-screen">
+      <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md fade-in">
+        <h1 class="text-2xl font-bold mb-4 text-center">Password Manager</h1>
+        <!-- Login Form -->
+        <div id="login-form">
+          <h2 class="text-xl font-semibold mb-4">Login</h2>
+          <input
+            type="text"
+            id="login-username"
+            placeholder="Username"
+            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          >
+          <input
+            type="password"
+            id="login-password"
+            placeholder="Master Password"
+            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          >
+          <button
+            onclick="login()"
+            class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+          >
+            Login
+          </button>
+          <p class="mt-4 text-center">
+            No account? <span onclick="showRegister()" class="text-blue-500 cursor-pointer hover:underline">Register</span>
+          </p>
+        </div>
+        <!-- Register Form -->
+        <div id="register-form" class="hidden">
+          <h2 class="text-xl font-semibold mb-4">Register</h2>
+          <input
+            type="text"
+            id="register-username"
+            placeholder="Username"
+            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          >
+          <input
+            type="password"
+            id="register-password"
+            placeholder="Master Password"
+            class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          >
+          <button
+            onclick="register()"
+            class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+          >
+            Register
+          </button>
+          <p class="mt-4 text-center">
+            Already have an account? <span onclick="showLogin()" class="text-blue-500 cursor-pointer hover:underline">Login</span>
+          </p>
+        </div>
+      </div>
+    </div>
+    <!-- Main App -->
+    <div id="main-app" class="hidden container mx-auto p-4 fade-in">
+      <h1 class="text-3xl font-bold mb-4">Password Manager</h1>
+      <!-- Autofill Simulation -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h2 class="text-xl font-semibold mb-4">Autofill Simulation</h2>
+        <input
+          type="text"
+          id="autofill-search"
+          placeholder="Search by website (e.g., example.com)"
+          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+          oninput="filterCredentials()"
+        >
+      </div>
+      <!-- Add Credential Form -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h2 class="text-xl font-semibold mb-4">Add Credential</h2>
+        <input
+          type="text"
+          id="website"
+          placeholder="Website (e.g., example.com)"
+          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+        >
+        <input
+          type="text"
+          id="username"
+          placeholder="Username"
+          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+        >
+        <div class="flex mb-4">
+          <input
+            type="text"
+            id="password"
+            placeholder="Password"
+            class="w-full p-2 border rounded focus:border-blue-500"
+          >
+          <button
+            onclick="generatePassword()"
+            class="ml-2 bg-green-500 text-white p-2 rounded scale-hover"
+          >
+            Generate
+          </button>
+        </div>
+        <textarea
+          id="note"
+          placeholder="Note"
+          class="w-full p-2 mb-4 border rounded focus:border-blue-500"
+        ></textarea>
+        <button
+          onclick="addCredential()"
+          class="w-full bg-blue-500 text-white p-2 rounded scale-hover"
+        >
+          Save
+        </button>
+      </div>
+      <!-- Security Checkup -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h2 class="text-xl font-semibold mb-4">Security Checkup</h2>
+        <button
+          onclick="runSecurityCheck()"
+          class="w-full bg-yellow-500 text-white p-2 rounded scale-hover"
+        >
+          Run Check
+        </button>
+        <p id="security-result" class="mt-4"></p>
+      </div>
+      <!-- Credentials List -->
+      <h2 class="text-2xl font-semibold mb-4">Saved Credentials</h2>
+      <div id="credentials-list" class="grid gap-4 credentials-list"></div>
+      <!-- Export/Import -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mt-6">
+        <h2 class="text-xl font-semibold mb-4">Export/Import</h2>
+        <button
+          onclick="exportCredentials()"
+          class="w-full bg-purple-500 text-white p-2 rounded scale-hover mb-4"
+        >
+          Export as CSV
+        </button>
+        <input
+          type="file"
+          id="import-file"
+          accept=".csv"
+          class="w-full p-2 mb-4 border rounded"
+          onchange="importCredentials(event)"
+        >
+      </div>
+    </div>
+  </div>
+  <script>
+    // Defer JS execution for page speed
+    window.addEventListener('DOMContentLoaded', () => {
+      // Register Service Worker
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js').then(() => {
+          console.log('Service Worker Registered');
+        }).catch(err => console.error('Service Worker Error:', err));
+      }
+
+      // Encryption Utilities
+      async function deriveKey(password, salt) {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey(
+          'raw', enc.encode(password), 'PBKDF2', false, ['deriveBits', 'deriveKey']
+        );
+        return crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          true,
+          ['encrypt', 'decrypt']
+        );
+      }
+
+      async function encrypt(data, password) {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const key = await deriveKey(password, salt);
+        const enc = new TextEncoder();
+        const encrypted = await crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv }, key, enc.encode(data)
+        );
+        return { salt, iv, encrypted: new Uint8Array(encrypted) };
+      }
+
+      async function decrypt({ salt, iv, encrypted }, password) {
+        const key = await deriveKey(password, salt);
+        const decrypted = await crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv }, key, encrypted
+        );
+        return new TextDecoder().decode(decrypted);
+      }
+
+      async function hashPassword(password) {
+        const salt = crypto.getRandomValues(new Uint8Array(16));
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.digest(
+          'SHA-256',
+          new Uint8Array([...enc.encode(password), ...salt])
+        );
+        return { salt, hash: new Uint8Array(key) };
+      }
+
+      async function verifyPassword(password, { salt, hash }) {
+        const enc = new TextEncoder();
+        const key = await crypto.subtle.digest(
+          'SHA-256',
+          new Uint8Array([...enc.encode(password), ...salt])
+        );
+        const keyArray = new Uint8Array(key);
+        return hash.every((byte, i) => byte === keyArray[i]);
+      }
+
+      // Password Generation
+      function generatePassword(length = 16) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+        const bytes = crypto.getRandomValues(new Uint8Array(length));
+        return Array.from(bytes).map(b => chars[b % chars.length]).join('');
+      }
+
+      // State
+      let masterPassword = '';
+      let currentUser = '';
+      let credentials = [];
+      let users = JSON.parse(localStorage.getItem('users') || '{}');
+
+      // UI Functions
+      function showRegister() {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.remove('hidden');
+      }
+
+      function showLogin() {
+        document.getElementById('register-form').classList.add('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+      }
+
+      async function register() {
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+        if (!username || !password) {
+          alert('Please enter both username and password');
+          return;
+        }
+        if (users[username]) {
+          alert('Username already exists');
+          return;
+        }
+        const hashedPassword = await hashPassword(password);
+        users[username] = hashedPassword;
+        localStorage.setItem('users', JSON.stringify(users));
+        alert('Registration successful! Please login.');
+        showLogin();
+        document.getElementById('register-username').value = '';
+        document.getElementById('register-password').value = '';
+      }
+
+      async function login() {
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        if (!username || !password) {
+          alert('Please enter both username and password');
+          return;
+        }
+        const user = users[username];
+        if (!user || !(await verifyPassword(password, user))) {
+          alert('Invalid username or password');
+          return;
+        }
+        masterPassword = password;
+        currentUser = username;
+        credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        renderCredentials();
+      }
+
+      async function addCredential() {
+        const website = document.getElementById('website').value;
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const note = document.getElementById('note').value;
+        if (!website || !username || !password) {
+          alert('Please fill in all required fields');
+          return;
+        }
+        const encryptedPassword = await encrypt(password, masterPassword);
+        const credential = {
+          id: crypto.randomUUID(),
+          website,
+          username,
+          encryptedPassword,
+          note
+        };
+        credentials.push(credential);
+        localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
+        renderCredentials();
+        document.getElementById('website').value = '';
+        document.getElementById('username').value = '';
+        document.getElementById('password').value = '';
+        document.getElementById('note').value = '';
+      }
+
+      function generatePasswordUI() {
+        document.getElementById('password').value = generatePassword();
+      }
+
+      async function showPassword(id) {
+        const cred = credentials.find(c => c.id === id);
+        try {
+          const decrypted = await decrypt(cred.encryptedPassword, masterPassword);
+          alert(`Password: ${decrypted}`);
+        } catch (e) {
+          alert('Incorrect master password');
+        }
+      }
+
+      function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+          alert('Copied to clipboard!');
+        });
+      }
+
+      function deleteCredential(id) {
+        credentials = credentials.filter(c => c.id !== id);
+        localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
+        renderCredentials();
+      }
+
+      function filterCredentials() {
+        const search = document.getElementById('autofill-search').value.toLowerCase();
+        renderCredentials(search);
+      }
+
+      function renderCredentials(search = '') {
+        const list = document.getElementById('credentials-list');
+        const filtered = search
+          ? credentials.filter(c => c.website.toLowerCase().includes(search))
+          : credentials;
+        list.innerHTML = filtered.map(cred => `
+          <div class="bg-white p-4 rounded-lg shadow-lg">
+            <p><strong>Website:</strong> ${cred.website}</p>
+            <p><strong>Username:</strong> ${cred.username}</p>
+            <p><strong>Note:</strong> ${cred.note || 'None'}</p>
+            <div class="mt-2 flex space-x-2">
+              <button
+                onclick="copyToClipboard('${cred.username}')"
+                class="bg-gray-500 text-white p-2 rounded scale-hover"
+              >
+                Copy Username
+              </button>
+              <button
+                onclick="showPassword('${cred.id}')"
+                class="bg-blue-500 text-white p-2 rounded scale-hover"
+              >
+                Show Password
+              </button>
+              <button
+                onclick="deleteCredential('${cred.id}')"
+                class="bg-red-500 text-white p-2 rounded scale-hover"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      async function runSecurityCheck() {
+        const result = document.getElementById('security-result');
+        let warnings = [];
+        const passwordSet = new Set();
+        for (const cred of credentials) {
+          const password = await decrypt(cred.encryptedPassword, masterPassword).catch(() => null);
+          if (!password) continue;
+          if (password.length < 8) {
+            warnings.push(`Weak password for ${cred.website}: Less than 8 characters`);
+          }
+          if (passwordSet.has(password)) {
+            warnings.push(`Reused password for ${cred.website}`);
+          }
+          passwordSet.add(password);
+        }
+        result.innerHTML = warnings.length
+          ? warnings.map(w => `<p class="text-red-600">${w}</p>`).join('')
+          : '<p class="text-green-600">No security issues found.</p>';
+      }
+
+      function exportCredentials() {
+        const csv = ['website,username,password,note'];
+        for (const cred of credentials) {
+          const password = decrypt(cred.encryptedPassword, masterPassword).catch(() => 'ERROR');
+          csv.push(`${cred.website},${cred.username},${password},${cred.note || ''}`);
+        }
+        const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'credentials.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+
+      async function importCredentials(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const text = await file.text();
+        const lines = text.split('\n').slice(1);
+        for (const line of lines) {
+          const [website, username, password, note] = line.split(',');
+          if (website && username && password) {
+            const encryptedPassword = await encrypt(password, masterPassword);
+            credentials.push({
+              id: crypto.randomUUID(),
+              website,
+              username,
+              encryptedPassword,
+              note
+            });
+          }
+        }
+        localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
+        renderCredentials();
+      }
+
+      // Expose functions to global scope
+      window.showRegister = showRegister;
+      window.showLogin = showLogin;
+      window.register = register;
+      window.login = login;
+      window.addCredential = addCredential;
+      window.generatePassword = generatePasswordUI;
+      window.showPassword = showPassword;
+      window.copyToClipboard = copyToClipboard;
+      window.deleteCredential = deleteCredential;
+      window.filterCredentials = filterCredentials;
+      window.runSecurityCheck = runSecurityCheck;
+      window.exportCredentials = exportCredentials;
+      window.importCredentials = importCredentials;
+
+      // Initial render
+      renderCredentials();
+    });
+  </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 const CACHE_NAME = 'password-manager-v1';
 const urlsToCache = [
   '/',
-  '/index.html',
+  'index.html',
   'https://cdn.tailwindcss.com'
 ];
 

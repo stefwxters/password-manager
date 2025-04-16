@@ -62,11 +62,69 @@
             Already have an account? <span onclick="showLogin()" class="text-blue cursor-pointer hover:underline">Login</span>
           </p>
         </div>
+        <!-- Auto Login Prompt -->
+        <div id="auto-login-prompt" class="hidden">
+          <h2 class="text-xl font-semibold mb-4">Auto Login</h2>
+          <p class="mb-4">Enter master password for <span id="auto-login-username"></span></p>
+          <input
+            type="password"
+            id="auto-login-password"
+            placeholder="Master Password"
+            class="w-full p-2 mb-4 border rounded focus-border-blue"
+          >
+          <button
+            onclick="autoLogin()"
+            class="w-full bg-blue text-white p-2 rounded scale-hover"
+          >
+            Login
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- PIN Confirmation Screen -->
+    <div id="pin-screen" class="hidden flex items-center justify-center min-h-screen">
+      <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md fade-in">
+        <h2 class="text-xl font-semibold mb-4">Confirm Identity</h2>
+        <p class="mb-4">Enter PIN to access password</p>
+        <input
+          type="password"
+          id="pin-input"
+          placeholder="PIN (1234)"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
+        >
+        <button
+          onclick="verifyPin()"
+          class="w-full bg-blue text-white p-2 rounded scale-hover"
+        >
+          Confirm
+        </button>
       </div>
     </div>
     <!-- Main App -->
     <div id="main-app" class="hidden container mx-auto p-4 fade-in">
       <h1 class="text-3xl font-bold mb-4">Password Manager</h1>
+      <!-- Settings -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h2 class="text-xl font-semibold mb-4">Settings</h2>
+        <label class="flex items-center mb-4">
+          <input
+            type="checkbox"
+            id="auto-login-toggle"
+            onchange="toggleAutoLogin()"
+            class="mr-2"
+          >
+          Enable Automatic Login
+        </label>
+        <label class="flex items-center mb-4">
+          <input
+            type="checkbox"
+            id="pin-confirmation-toggle"
+            onchange="togglePinConfirmation()"
+            class="mr-2"
+          >
+          Require PIN Confirmation (Simulates Windows Hello)
+        </label>
+      </div>
       <!-- Autofill Simulation -->
       <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
         <h2 class="text-xl font-semibold mb-4">Autofill Simulation</h2>
@@ -78,7 +136,7 @@
           oninput="filterCredentials()"
         >
       </div>
-      <!-- Add Credential Form -->
+      <!-- Add Credential -->
       <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
         <h2 class="text-xl font-semibold mb-4">Add Credential</h2>
         <input
@@ -116,7 +174,23 @@
           onclick="addCredential()"
           class="w-full bg-blue text-white p-2 rounded scale-hover"
         >
-          Save
+          Save Password
+        </button>
+      </div>
+      <!-- Add Access Key -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mb-6">
+        <h2 class="text-xl font-semibold mb-4">Add Access Key</h2>
+        <input
+          type="text"
+          id="key-website"
+          placeholder="Website (e.g., example.com)"
+          class="w-full p-2 mb-4 border rounded focus-border-blue"
+        >
+        <button
+          onclick="generateAccessKey()"
+          class="w-full bg-blue text-white p-2 rounded scale-hover"
+        >
+          Generate and Save Access Key
         </button>
       </div>
       <!-- Security Checkup -->
@@ -133,6 +207,9 @@
       <!-- Credentials List -->
       <h2 class="text-2xl font-semibold mb-4">Saved Credentials</h2>
       <div id="credentials-list" class="grid gap-4 credentials-list"></div>
+      <!-- Access Keys List -->
+      <h2 class="text-2xl font-semibold mb-4 mt-6">Saved Access Keys</h2>
+      <div id="access-keys-list" class="grid gap-4 credentials-list"></div>
       <!-- Export/Import -->
       <div class="bg-white p-6 rounded-lg shadow-lg mt-6">
         <h2 class="text-xl font-semibold mb-4">Export/Import</h2>
@@ -150,6 +227,26 @@
           onchange="importCredentials(event)"
         >
       </div>
+      <!-- Manage Access Keys -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mt-6">
+        <h2 class="text-xl font-semibold mb-4">Manage Access Keys</h2>
+        <button
+          onclick="renderAccessKeys()"
+          class="w-full bg-blue text-white p-2 rounded scale-hover mb-4"
+        >
+          View Access Keys
+        </button>
+      </div>
+      <!-- Delete All Data -->
+      <div class="bg-white p-6 rounded-lg shadow-lg mt-6">
+        <h2 class="text-xl font-semibold mb-4">Delete All Data</h2>
+        <button
+          onclick="deleteAllData()"
+          class="w-full bg-red text-white p-2 rounded scale-hover"
+        >
+          Delete All Data
+        </button>
+      </div>
     </div>
   </div>
   <script>
@@ -157,7 +254,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       // Register Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js').then(() => {
+        navigator.serviceWorker.register('/sw.js').then(() => {
           console.log('Service Worker Registered');
         }).catch(err => console.error('Service Worker Error:', err));
       }
@@ -216,9 +313,15 @@
         return hash.every((byte, i) => byte === keyArray[i]);
       }
 
-      // Password Generation
+      // Password and Access Key Generation
       function generatePassword(length = 16) {
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()';
+        const bytes = crypto.getRandomValues(new Uint8Array(length));
+        return Array.from(bytes).map(b => chars[b % chars.length]).join('');
+      }
+
+      function generateAccessKey(length = 32) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         const bytes = crypto.getRandomValues(new Uint8Array(length));
         return Array.from(bytes).map(b => chars[b % chars.length]).join('');
       }
@@ -227,16 +330,94 @@
       let masterPassword = '';
       let currentUser = '';
       let credentials = [];
+      let accessKeys = [];
       let users = JSON.parse(localStorage.getItem('users') || '{}');
+      let settings = JSON.parse(localStorage.getItem('settings') || '{}');
+      let pinCallback = null;
+
+      // Settings
+      function toggleAutoLogin() {
+        settings.autoLogin = document.getElementById('auto-login-toggle').checked;
+        if (settings.autoLogin) {
+          settings.lastUser = currentUser;
+        } else {
+          delete settings.lastUser;
+        }
+        localStorage.setItem('settings', JSON.stringify(settings));
+      }
+
+      function togglePinConfirmation() {
+        settings.pinConfirmation = document.getElementById('pin-confirmation-toggle').checked;
+        localStorage.setItem('settings', JSON.stringify(settings));
+      }
+
+      // Auto Login
+      if (settings.autoLogin && settings.lastUser && users[settings.lastUser]) {
+        document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+        document.getElementById('auto-login-prompt').classList.remove('hidden');
+        document.getElementById('auto-login-username').textContent = settings.lastUser;
+      }
+
+      async function autoLogin() {
+        const password = document.getElementById('auto-login-password').value;
+        const username = settings.lastUser;
+        if (!password) {
+          alert('Please enter the master password');
+          return;
+        }
+        const user = users[username];
+        if (!user || !(await verifyPassword(password, user))) {
+          alert('Invalid password');
+          return;
+        }
+        masterPassword = password;
+        currentUser = username;
+        credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
+        accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
+        document.getElementById('auth-screen').classList.add('hidden');
+        document.getElementById('main-app').classList.remove('hidden');
+        renderCredentials();
+        renderAccessKeys();
+        document.getElementById('auto-login-toggle').checked = settings.autoLogin;
+        document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
+      }
+
+      // PIN Confirmation (Simulates Windows Hello)
+      async function verifyPin() {
+        const pin = document.getElementById('pin-input').value;
+        if (pin === '1234') { // Hardcoded for demo; in production, use secure storage
+          document.getElementById('pin-screen').classList.add('hidden');
+          document.getElementById('main-app').classList.remove('hidden');
+          if (pinCallback) {
+            pinCallback();
+            pinCallback = null;
+          }
+        } else {
+          alert('Invalid PIN');
+        }
+      }
+
+      async function requirePinConfirmation(callback) {
+        if (!settings.pinConfirmation) {
+          callback();
+          return;
+        }
+        document.getElementById('main-app').classList.add('hidden');
+        document.getElementById('pin-screen').classList.remove('hidden');
+        pinCallback = callback;
+      }
 
       // UI Functions
       function showRegister() {
         document.getElementById('login-form').classList.add('hidden');
+        document.getElementById('auto-login-prompt').classList.add('hidden');
         document.getElementById('register-form').classList.remove('hidden');
       }
 
       function showLogin() {
         document.getElementById('register-form').classList.add('hidden');
+        document.getElementById('auto-login-prompt').classList.add('hidden');
         document.getElementById('login-form').classList.remove('hidden');
       }
 
@@ -275,9 +456,13 @@
         masterPassword = password;
         currentUser = username;
         credentials = JSON.parse(localStorage.getItem(`credentials_${username}`) || '[]');
+        accessKeys = JSON.parse(localStorage.getItem(`accessKeys_${username}`) || '[]');
         document.getElementById('auth-screen').classList.add('hidden');
         document.getElementById('main-app').classList.remove('hidden');
         renderCredentials();
+        renderAccessKeys();
+        document.getElementById('auto-login-toggle').checked = settings.autoLogin;
+        document.getElementById('pin-confirmation-toggle').checked = settings.pinConfirmation;
       }
 
       async function addCredential() {
@@ -306,18 +491,52 @@
         document.getElementById('note').value = '';
       }
 
+      async function generateAccessKey() {
+        const website = document.getElementById('key-website').value;
+        if (!website) {
+          alert('Please enter a website');
+          return;
+        }
+        const key = generateAccessKey();
+        const encryptedKey = await encrypt(key, masterPassword);
+        const accessKey = {
+          id: crypto.randomUUID(),
+          website,
+          encryptedKey
+        };
+        accessKeys.push(accessKey);
+        localStorage.setItem(`accessKeys_${currentUser}`, JSON.stringify(accessKeys));
+        renderAccessKeys();
+        document.getElementById('key-website').value = '';
+        alert('Access key generated and saved!');
+      }
+
       function generatePasswordUI() {
         document.getElementById('password').value = generatePassword();
       }
 
       async function showPassword(id) {
         const cred = credentials.find(c => c.id === id);
-        try {
-          const decrypted = await decrypt(cred.encryptedPassword, masterPassword);
-          copyToClipboard(decrypted);
-        } catch (e) {
-          alert('Incorrect master password');
-        }
+        requirePinConfirmation(async () => {
+          try {
+            const decrypted = await decrypt(cred.encryptedPassword, masterPassword);
+            copyToClipboard(decrypted);
+          } catch (e) {
+            alert('Incorrect master password');
+          }
+        });
+      }
+
+      async function showAccessKey(id) {
+        const key = accessKeys.find(k => k.id === id);
+        requirePinConfirmation(async () => {
+          try {
+            const decrypted = await decrypt(key.encryptedKey, masterPassword);
+            copyToClipboard(decrypted);
+          } catch (e) {
+            alert('Incorrect master password');
+          }
+        });
       }
 
       function copyToClipboard(text) {
@@ -330,6 +549,12 @@
         credentials = credentials.filter(c => c.id !== id);
         localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
         renderCredentials();
+      }
+
+      function revokeAccessKey(id) {
+        accessKeys = accessKeys.filter(k => k.id !== id);
+        localStorage.setItem(`accessKeys_${currentUser}`, JSON.stringify(accessKeys));
+        renderAccessKeys();
       }
 
       function filterCredentials() {
@@ -371,6 +596,29 @@
         `).join('');
       }
 
+      function renderAccessKeys() {
+        const list = document.getElementById('access-keys-list');
+        list.innerHTML = accessKeys.map(key => `
+          <div class="bg-white p-4 rounded-lg shadow-lg">
+            <p><strong>Website:</strong> ${key.website}</p>
+            <div class="mt-2 flex space-x-2">
+              <button
+                onclick="showAccessKey('${key.id}')"
+                class="bg-blue text-white p-2 rounded scale-hover"
+              >
+                Copy Access Key
+              </button>
+              <button
+                onclick="revokeAccessKey('${key.id}')"
+                class="bg-red text-white p-2 rounded scale-hover"
+              >
+                Revoke
+              </button>
+            </div>
+          </div>
+        `).join('');
+      }
+
       async function runSecurityCheck() {
         const result = document.getElementById('security-result');
         let warnings = [];
@@ -392,10 +640,14 @@
       }
 
       function exportCredentials() {
-        const csv = ['website,username,password,note'];
+        const csv = ['type,website,username,password,access_key,note'];
         for (const cred of credentials) {
           const password = decrypt(cred.encryptedPassword, masterPassword).catch(() => 'ERROR');
-          csv.push(`${cred.website},${cred.username},${password},${cred.note || ''}`);
+          csv.push(`password,${cred.website},${cred.username},${password},,${cred.note || ''}`);
+        }
+        for (const key of accessKeys) {
+          const accessKey = decrypt(key.encryptedKey, masterPassword).catch(() => 'ERROR');
+          csv.push(`access_key,${key.website},,,${accessKey},`);
         }
         const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
@@ -412,8 +664,8 @@
         const text = await file.text();
         const lines = text.split('\n').slice(1);
         for (const line of lines) {
-          const [website, username, password, note] = line.split(',');
-          if (website && username && password) {
+          const [type, website, username, password, accessKey, note] = line.split(',');
+          if (type === 'password' && website && username && password) {
             const encryptedPassword = await encrypt(password, masterPassword);
             credentials.push({
               id: crypto.randomUUID(),
@@ -422,10 +674,34 @@
               encryptedPassword,
               note
             });
+          } else if (type === 'access_key' && website && accessKey) {
+            const encryptedKey = await encrypt(accessKey, masterPassword);
+            accessKeys.push({
+              id: crypto.randomUUID(),
+              website,
+              encryptedKey
+            });
           }
         }
         localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
+        localStorage.setItem(`accessKeys_${currentUser}`, JSON.stringify(accessKeys));
         renderCredentials();
+        renderAccessKeys();
+      }
+
+      function deleteAllData() {
+        if (!confirm('Are you sure you want to delete all data? This cannot be undone.')) return;
+        localStorage.clear();
+        users = {};
+        credentials = [];
+        accessKeys = [];
+        settings = {};
+        document.getElementById('main-app').classList.add('hidden');
+        document.getElementById('auth-screen').classList.remove('hidden');
+        document.getElementById('login-form').classList.remove('hidden');
+        document.getElementById('register-form').classList.add('hidden');
+        document.getElementById('auto-login-prompt').classList.add('hidden');
+        alert('All data deleted.');
       }
 
       // Expose functions to global scope
@@ -433,18 +709,28 @@
       window.showLogin = showLogin;
       window.register = register;
       window.login = login;
+      window.autoLogin = autoLogin;
+      window.verifyPin = verifyPin;
+      window.toggleAutoLogin = toggleAutoLogin;
+      window.togglePinConfirmation = togglePinConfirmation;
       window.addCredential = addCredential;
+      window.generateAccessKey = generateAccessKey;
       window.generatePassword = generatePasswordUI;
       window.showPassword = showPassword;
+      window.showAccessKey = showAccessKey;
       window.copyToClipboard = copyToClipboard;
       window.deleteCredential = deleteCredential;
+      window.revokeAccessKey = revokeAccessKey;
       window.filterCredentials = filterCredentials;
       window.runSecurityCheck = runSecurityCheck;
       window.exportCredentials = exportCredentials;
       window.importCredentials = importCredentials;
+      window.renderAccessKeys = renderAccessKeys;
+      window.deleteAllData = deleteAllData;
 
       // Initial render
       renderCredentials();
+      renderAccessKeys();
     });
   </script>
 </body>

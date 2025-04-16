@@ -1,8 +1,8 @@
 const CACHE_NAME = 'password-manager-v1';
 const urlsToCache = [
   '/',
-  'index.html',
-  'https://cdn.tailwindcss.com'
+  '/index.html',
+  '/styles.css'
 ];
 
 self.addEventListener('install', event => {

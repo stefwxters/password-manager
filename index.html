@@ -254,7 +254,7 @@
     window.addEventListener('DOMContentLoaded', () => {
       // Register Service Worker
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js').then(() => {
+        navigator.serviceWorker.register('sw.js').then(() => {
           console.log('Service Worker Registered');
         }).catch(err => console.error('Service Worker Error:', err));
       }
@@ -677,53 +677,74 @@
 
       async function importCredentials(event) {
         const file = event.target.files[0];
-        if (!file) {
-          alert('No file selected');
+        if (!file) return;
+        if (!currentUser || !masterPassword) {
+          alert('Please log in before importing credentials.');
           return;
         }
         try {
           const text = await file.text();
           const lines = text.split('\n').slice(1).filter(line => line.trim());
-          let importedPasswords = 0;
-          let importedKeys = 0;
-          console.log('Starting CSV import...');
+          let importedCount = 0;
+          let errorCount = 0;
+
           for (const line of lines) {
-            console.log('Processing line:', line);
-            // Handle CSV parsing with proper splitting (accounting for commas in fields)
-            const fields = line.split(',').map(field => field.trim());
+            // Simple CSV parser to handle quoted fields and commas
+            const fields = [];
+            let currentField = '';
+            let insideQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                insideQuotes = !insideQuotes;
+              } else if (char === ',' && !insideQuotes) {
+                fields.push(currentField.trim());
+                currentField = '';
+              } else {
+                currentField += char;
+              }
+            }
+            fields.push(currentField.trim());
+
             const [type, website, username, password, accessKey, note] = fields;
-            if (type === 'password' && website && username && password) {
-              console.log(`Importing password for ${website}`);
-              const encryptedPassword = await encrypt(password, masterPassword);
-              credentials.push({
-                id: crypto.randomUUID(),
-                website,
-                username,
-                encryptedPassword,
-                note: note || ''
-              });
-              importedPasswords++;
-            } else if (type === 'access_key' && website && accessKey) {
-              console.log(`Importing access key for ${website}`);
-              const encryptedKey = await encrypt(accessKey, masterPassword);
-              accessKeys.push({
-                id: crypto.randomUUID(),
-                website,
-                encryptedKey
-              });
-              importedKeys++;
-            } else {
-              console.log('Skipping invalid line:', line);
+            try {
+              if (type === 'password' && website && username && password) {
+                const encryptedPassword = await encrypt(password, masterPassword);
+                credentials.push({
+                  id: crypto.randomUUID(),
+                  website,
+                  username,
+                  encryptedPassword,
+                  note: note || ''
+                });
+                importedCount++;
+              } else if (type === 'access_key' && website && accessKey && accessKey.length >= 8) {
+                const encryptedKey = await encrypt(accessKey, masterPassword);
+                accessKeys.push({
+                  id: crypto.randomUUID(),
+                  website,
+                  encryptedKey
+                });
+                importedCount++;
+              } else {
+                console.warn(`Skipped invalid CSV entry: ${line}`);
+                errorCount++;
+              }
+            } catch (e) {
+              console.error(`Error processing CSV entry: ${line}`, e);
+              errorCount++;
             }
           }
+
           localStorage.setItem(`credentials_${currentUser}`, JSON.stringify(credentials));
           localStorage.setItem(`accessKeys_${currentUser}`, JSON.stringify(accessKeys));
           renderCredentials();
           renderAccessKeys();
-          alert(`Import completed: ${importedPasswords} passwords and ${importedKeys} access keys imported.`);
+
+          alert(`Import completed: ${importedCount} items imported successfully, ${errorCount} errors.`);
         } catch (e) {
-          console.error('Import failed:', e);
-          alert('Failed to import credentials. Please check the CSV format and try again.');
+          alert('Failed to import credentials. Please ensure the CSV file is valid.');
+          console.error('Import error:', e);
         }
       }
 

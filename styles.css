@@ -250,6 +250,12 @@ button {
   text-decoration: underline;
 }
 
+/* Checkbox */
+input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+}
+
 /* Responsive */
 @media (max-width: 640px) {
   .container {
